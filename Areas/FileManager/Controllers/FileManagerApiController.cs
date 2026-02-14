@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Text;
-using RazorFileManagerApp.Services;
+using WebFileManager.Services;
 
-namespace RazorFileManagerApp.Controllers;
+namespace WebFileManager.Controllers;
 
 [ApiController]
 [Route("api/filemanager")]
@@ -241,4 +241,5 @@ public record CopyRequest(string? SourcePath, string? TargetPath, List<string> F
 public record ZipRequest(string? Path, List<string> FileNames, List<string> DirectoryNames, string? Root = null);
 public record UnzipRequest(string? Path, string ZipFileName, string? Root = null);
 public record SaveTextRequest(string? Path, string FileName, string? Content, string? Root = null);
+
 

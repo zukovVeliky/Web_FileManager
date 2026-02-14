@@ -1,4 +1,4 @@
-﻿namespace RazorFileManagerApp.Services.ComponentSettings;
+﻿namespace WebFileManager.Services.ComponentSettings;
 
 public interface IComponentSettingsProvider
 {
@@ -6,4 +6,5 @@ public interface IComponentSettingsProvider
     CKEditorComponentSettings GetCKEditorSettings(string instanceId, string? pageScope = null);
     FileManagerComponentSettings GetFileManagerSettings(string instanceId, string? pageScope = null);
 }
+
 

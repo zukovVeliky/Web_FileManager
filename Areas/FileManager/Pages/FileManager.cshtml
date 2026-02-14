@@ -1,5 +1,5 @@
 ﻿@page "/FileManager"
-@model RazorFileManagerApp.Areas.FileManager.Pages.FileManagerModel
+@model WebFileManager.Areas.FileManager.Pages.FileManagerModel
 @{
     ViewData["Title"] = "FileManager";
 }
@@ -186,7 +186,7 @@
                     const isDevRefreshPath =
                         path.includes("browserlinksignalr") ||
                         path.includes("browserlink") ||
-                        path.includes("/RazorFileManagerApp/");
+                        path.includes("/WebFileManager/");
 
                     return isOtherLocalPort || isDevRefreshPath;
                 } catch {
@@ -232,6 +232,7 @@
     </script>
     <script src="~/Lib/Filemanager/js/filemanager.js" asp-append-version="true"></script>
 }
+
 
 
 

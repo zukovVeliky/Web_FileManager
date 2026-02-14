@@ -3,7 +3,7 @@ using System.Drawing.Imaging;
 using System.IO.Compression;
 using System.Diagnostics;
 
-namespace RazorFileManagerApp.Services;
+namespace WebFileManager.Services;
 
 public class CustomFileManagerService
 {
@@ -701,6 +701,7 @@ public record FileManagerEntry(
     long Size,
     DateTimeOffset Modified,
     string? Url);
+
 
 
 

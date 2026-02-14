@@ -1,4 +1,4 @@
-﻿namespace RazorFileManagerApp.Services.ComponentSettings;
+﻿namespace WebFileManager.Services.ComponentSettings;
 
 public sealed class AvatarComponentSettings
 {
@@ -109,4 +109,5 @@ public sealed class FileManagerInstanceSettings
     public string? PageScope { get; set; }
     public FileManagerComponentSettingsOverride Settings { get; set; } = new();
 }
+
 

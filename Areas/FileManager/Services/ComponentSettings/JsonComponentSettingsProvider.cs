@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
 
-namespace RazorFileManagerApp.Services.ComponentSettings;
+namespace WebFileManager.Services.ComponentSettings;
 
 public sealed class JsonComponentSettingsProvider : IComponentSettingsProvider
 {
@@ -237,4 +237,5 @@ public sealed class JsonComponentSettingsProvider : IComponentSettingsProvider
         };
     }
 }
+
 

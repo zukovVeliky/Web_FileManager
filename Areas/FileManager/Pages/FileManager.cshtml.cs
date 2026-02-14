@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc.RazorPages;
-using RazorFileManagerApp.Services.ComponentSettings;
+using WebFileManager.Services.ComponentSettings;
 
-namespace RazorFileManagerApp.Areas.FileManager.Pages;
+namespace WebFileManager.Areas.FileManager.Pages;
 
 public class FileManagerModel : PageModel
 {
@@ -20,5 +20,6 @@ public class FileManagerModel : PageModel
         Settings = _componentSettings.GetFileManagerSettings(FileManagerInstanceId, Request.Path);
     }
 }
+
 
 
