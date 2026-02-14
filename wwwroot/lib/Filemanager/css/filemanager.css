@@ -115,6 +115,132 @@
     flex-direction: column;
 }
 
+.rfm-image-preview-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    background: rgba(6, 12, 23, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.rfm-image-preview-window {
+    width: min(1200px, 96vw);
+    height: min(92vh, 980px);
+    background: #ffffff;
+    border: 1px solid #d7dce2;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+}
+
+.rfm-image-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid #dce3eb;
+    background: #f8fafc;
+}
+
+.rfm-image-preview-title {
+    font-weight: 600;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rfm-image-preview-body {
+    flex: 1;
+    min-height: 0;
+    padding: 0.75rem;
+    background: #f8fbff;
+}
+
+.rfm-image-preview-layout {
+    display: flex;
+    align-items: stretch;
+    gap: 0.75rem;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+.rfm-image-preview-stage {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem;
+    border: 1px solid #dbe6f3;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.rfm-image-preview-content {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    border: 1px solid #d7e2f0;
+    background: #ffffff;
+}
+
+.rfm-image-preview-meta {
+    width: 280px;
+    flex: 0 0 280px;
+    border: 1px solid #dbe6f3;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 0.6rem 0.7rem;
+    overflow: auto;
+}
+
+.rfm-image-meta-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 0.55rem;
+    align-items: start;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #eef3f8;
+    font-size: 0.92rem;
+}
+
+.rfm-image-meta-row:last-child {
+    border-bottom: 0;
+}
+
+.rfm-image-meta-row span {
+    color: #5d6b7c;
+}
+
+.rfm-image-meta-row strong {
+    color: #1f2937;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+    .rfm-image-preview-layout {
+        flex-direction: column;
+    }
+
+    .rfm-image-preview-meta {
+        width: 100%;
+        flex: 0 0 auto;
+    }
+}
+
 .rfm-editor-header {
     display: flex;
     justify-content: space-between;

@@ -120,6 +120,32 @@
     </div>
 </div>
 
+<div id="rfm-preview-modal" class="rfm-image-preview-modal" hidden>
+    <div class="rfm-image-preview-window" role="dialog" aria-modal="true" aria-labelledby="rfm-preview-title">
+        <div class="rfm-image-preview-header">
+            <div id="rfm-preview-title" class="rfm-image-preview-title"></div>
+            <button id="rfm-preview-close" class="btn btn-sm btn-secondary" type="button">
+                <i class="bi bi-x-lg"></i> Zavrit
+            </button>
+        </div>
+        <div class="rfm-image-preview-body">
+            <div class="rfm-image-preview-layout">
+                <div class="rfm-image-preview-stage">
+                    <img id="rfm-preview-image" class="rfm-image-preview-content" alt="" />
+                </div>
+                <aside class="rfm-image-preview-meta" aria-label="Informace o souboru">
+                    <div class="rfm-image-meta-row"><span>Format</span><strong id="rfm-preview-meta-format">-</strong></div>
+                    <div class="rfm-image-meta-row"><span>Rozliseni</span><strong id="rfm-preview-meta-resolution">-</strong></div>
+                    <div class="rfm-image-meta-row"><span>Pomer stran</span><strong id="rfm-preview-meta-aspect">-</strong></div>
+                    <div class="rfm-image-meta-row"><span>Velikost</span><strong id="rfm-preview-meta-size">-</strong></div>
+                    <div class="rfm-image-meta-row"><span>Zmeneno</span><strong id="rfm-preview-meta-modified">-</strong></div>
+                    <div class="rfm-image-meta-row"><span>Cesta</span><strong id="rfm-preview-meta-path">-</strong></div>
+                </aside>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Styles {
     <link rel="stylesheet" href="~/Lib/Filemanager/css/windows-filemanager.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Lib/Filemanager/css/filemanager.css" asp-append-version="true" />

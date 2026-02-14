@@ -32,6 +32,11 @@
             isDark: false,
             ace: null
         },
+        preview: {
+            isOpen: false,
+            fileName: '',
+            entry: null
+        },
         picker: {
             enabled: false,
             onlyImages: false,
@@ -77,6 +82,17 @@
         el.editorLanguage = q('rfm-editor-language');
         el.editorStatus = q('rfm-editor-status');
         el.editorSurface = q('rfm-editor');
+        el.previewModal = q('rfm-preview-modal');
+        el.previewWindow = el.previewModal ? el.previewModal.querySelector('.rfm-image-preview-window') : null;
+        el.previewTitle = q('rfm-preview-title');
+        el.previewImage = q('rfm-preview-image');
+        el.previewClose = q('rfm-preview-close');
+        el.previewMetaFormat = q('rfm-preview-meta-format');
+        el.previewMetaResolution = q('rfm-preview-meta-resolution');
+        el.previewMetaAspect = q('rfm-preview-meta-aspect');
+        el.previewMetaSize = q('rfm-preview-meta-size');
+        el.previewMetaModified = q('rfm-preview-meta-modified');
+        el.previewMetaPath = q('rfm-preview-meta-path');
 
         bindEvents();
         loadEntries('');
@@ -203,6 +219,21 @@
             }
         });
 
+        if (el.previewClose) {
+            el.previewClose.addEventListener('click', (event) => {
+                event.preventDefault();
+                closeImagePreview();
+            });
+        }
+
+        if (el.previewModal) {
+            el.previewModal.addEventListener('click', (event) => {
+                if (event.target === el.previewModal) {
+                    closeImagePreview();
+                }
+            });
+        }
+
         // Hard guard against accidental page submit/postback from modal controls.
         document.addEventListener('submit', (event) => {
             if (!state.editor.isOpen) {
@@ -216,6 +247,14 @@
         }, true);
 
         document.addEventListener('keydown', async (event) => {
+            if (state.preview.isOpen) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeImagePreview();
+                }
+                return;
+            }
+
             if (!state.editor.isOpen) {
                 if (isInputLike(event.target)) {
                     return;
@@ -922,6 +961,9 @@
                 items.push({ id: 'pick', label: 'Vybrat', icon: 'bi-check2-square' });
                 items.push({ sep: true });
             }
+            if (!hasMultiSelection && isImageFile(target.name)) {
+                items.push({ id: 'preview', label: 'Nahled', icon: 'bi-eye' });
+            }
             if (!hasMultiSelection && isTextFile(target.name)) {
                 items.push({ id: 'edit', label: 'Otevřít v editoru', icon: 'bi-file-text' });
             }
@@ -980,6 +1022,14 @@
                     const [single] = resolveActionEntries(target);
                     if (single && isTextFile(single.name)) {
                         await openEditor(single);
+                    }
+                }
+                break;
+            case 'preview':
+                {
+                    const [single] = resolveActionEntries(target);
+                    if (single && isImageFile(single.name)) {
+                        openImagePreview(single);
                     }
                 }
                 break;
@@ -1183,6 +1233,133 @@
         window.open(entry.url, '_blank', 'noopener');
     }
 
+    function openImagePreview(entry) {
+        if (!entry || !isImageFile(entry.name) || !el.previewModal || !el.previewImage || !el.previewTitle) {
+            return;
+        }
+
+        const src = entry.url ? entry.url : buildPreviewUrl(entry);
+        if (!src) {
+            alert('Nahled obrazku neni dostupny.');
+            return;
+        }
+
+        state.preview.isOpen = true;
+        state.preview.fileName = entry.name || '';
+        state.preview.entry = entry;
+
+        el.previewTitle.textContent = state.preview.fileName;
+        setPreviewMetaInfo(entry);
+        el.previewImage.onload = () => {
+            if (!state.preview.isOpen || !el.previewImage || !el.previewMetaResolution || !el.previewMetaAspect) {
+                return;
+            }
+
+            const width = el.previewImage.naturalWidth || 0;
+            const height = el.previewImage.naturalHeight || 0;
+            if (width > 0 && height > 0) {
+                el.previewMetaResolution.textContent = `${width} x ${height} px`;
+                el.previewMetaAspect.textContent = formatAspectRatio(width, height);
+            } else {
+                el.previewMetaResolution.textContent = '-';
+                el.previewMetaAspect.textContent = '-';
+            }
+        };
+        el.previewImage.onerror = () => {
+            if (el.previewMetaResolution) el.previewMetaResolution.textContent = 'Nelze nacist';
+            if (el.previewMetaAspect) el.previewMetaAspect.textContent = '-';
+        };
+        el.previewImage.src = src;
+        el.previewImage.alt = state.preview.fileName;
+        el.previewModal.hidden = false;
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeImagePreview() {
+        if (!state.preview.isOpen || !el.previewModal || !el.previewImage || !el.previewTitle) {
+            return;
+        }
+
+        state.preview.isOpen = false;
+        state.preview.fileName = '';
+        state.preview.entry = null;
+        el.previewImage.onload = null;
+        el.previewImage.onerror = null;
+        el.previewImage.removeAttribute('src');
+        el.previewImage.alt = '';
+        el.previewTitle.textContent = '';
+        clearPreviewMetaInfo();
+        el.previewModal.hidden = true;
+        document.body.style.overflow = state.editor.isOpen ? 'hidden' : '';
+    }
+
+    function setPreviewMetaInfo(entry) {
+        if (!entry) {
+            clearPreviewMetaInfo();
+            return;
+        }
+
+        if (el.previewMetaFormat) {
+            const ext = getExtension(entry.name);
+            el.previewMetaFormat.textContent = ext ? ext.toUpperCase() : '-';
+        }
+
+        if (el.previewMetaResolution) {
+            el.previewMetaResolution.textContent = 'Nacitam...';
+        }
+
+        if (el.previewMetaAspect) {
+            el.previewMetaAspect.textContent = 'Nacitam...';
+        }
+
+        if (el.previewMetaSize) {
+            el.previewMetaSize.textContent = formatSize(entry.size || 0);
+        }
+
+        if (el.previewMetaModified) {
+            el.previewMetaModified.textContent = formatDate(entry.modified);
+        }
+
+        if (el.previewMetaPath) {
+            el.previewMetaPath.textContent = entry.relativePath || '-';
+        }
+    }
+
+    function clearPreviewMetaInfo() {
+        if (el.previewMetaFormat) el.previewMetaFormat.textContent = '-';
+        if (el.previewMetaResolution) el.previewMetaResolution.textContent = '-';
+        if (el.previewMetaAspect) el.previewMetaAspect.textContent = '-';
+        if (el.previewMetaSize) el.previewMetaSize.textContent = '-';
+        if (el.previewMetaModified) el.previewMetaModified.textContent = '-';
+        if (el.previewMetaPath) el.previewMetaPath.textContent = '-';
+    }
+
+    function formatAspectRatio(width, height) {
+        if (!width || !height) {
+            return '-';
+        }
+
+        const gcd = greatestCommonDivisor(width, height);
+        if (!gcd) {
+            return '-';
+        }
+
+        return `${Math.round(width / gcd)}:${Math.round(height / gcd)}`;
+    }
+
+    function greatestCommonDivisor(a, b) {
+        let x = Math.abs(Number(a) || 0);
+        let y = Math.abs(Number(b) || 0);
+
+        while (y !== 0) {
+            const t = y;
+            y = x % y;
+            x = t;
+        }
+
+        return x;
+    }
+
     async function openEditor(entry) {
         if (!entry.url) {
             return;
@@ -1283,7 +1460,7 @@
 
         state.editor.isOpen = false;
         el.editorModal.hidden = true;
-        document.body.style.overflow = '';
+        document.body.style.overflow = state.preview.isOpen ? 'hidden' : '';
     }
 
     function toggleEditorTheme() {
