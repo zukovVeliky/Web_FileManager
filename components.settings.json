@@ -1,0 +1,75 @@
+﻿{
+  "version": 1,
+  "components": {
+    "avatar": {
+      "defaults": {
+        "modifier": "AvatarFM",
+        "cropWidth": 800,
+        "cropHeight": 200,
+        "maxCropStateLength": 2000,
+        "maxDisplayedLogEntries": 100,
+        "fileManagerOnlyImages": true,
+        "fileManagerAllowExt": "jpg,jpeg,png,webp,gif",
+        "fileManagerUseDefaultRoot": true,
+        "fileManagerRoot": null
+      },
+      "instances": [
+        {
+          "instanceId": "avatar-main",
+          "pageScope": "/AvatarFileManager",
+          "settings": {
+            "modifier": "AvatarFM",
+            "cropWidth": 800,
+            "cropHeight": 200,
+            "maxCropStateLength": 2000,
+            "maxDisplayedLogEntries": 100,
+            "fileManagerOnlyImages": true,
+            "fileManagerAllowExt": "jpg,jpeg,png,webp,gif",
+            "fileManagerUseDefaultRoot": true,
+            "fileManagerRoot": null
+          }
+        }
+      ]
+    },
+    "ckEditor": {
+      "defaults": {
+        "setPath": "UzivatelskeSoubory",
+        "callbackName": "ZachyceniURLCKeditor",
+        "pickerAllowExt": "jpg,jpeg,png,gif,bmp,webp,svg,pdf",
+        "popupName": "FileManagerPicker"
+      },
+      "instances": [
+        {
+          "instanceId": "home-editor",
+          "pageScope": "/",
+          "settings": {
+            "setPath": "UzivatelskeSoubory",
+            "callbackName": "ZachyceniURLCKeditor_home",
+            "pickerAllowExt": "jpg,jpeg,png,gif,bmp,webp,svg,pdf",
+            "popupName": "FileManagerPicker_home"
+          }
+        }
+      ]
+    },
+    "fileManager": {
+      "defaults": {
+        "root": null,
+        "onlyImages": null,
+        "allowExt": null,
+        "callback": null
+      },
+      "instances": [
+        {
+          "instanceId": "main-filemanager-page",
+          "pageScope": "/FileManager",
+          "settings": {
+            "root": null,
+            "onlyImages": null,
+            "allowExt": null,
+            "callback": null
+          }
+        }
+      ]
+    }
+  }
+}

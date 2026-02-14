@@ -1,0 +1,383 @@
+﻿.rfm-page {
+    background: #f5f6f8;
+    border: 1px solid #d7dce2;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.rfm-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #ffffff;
+    border-bottom: 1px solid #dde2e8;
+}
+
+.rfm-path {
+    margin-left: auto;
+    font-size: 0.9rem;
+    color: #495057;
+    background: #f3f6fa;
+    border: 1px solid #d9e1ea;
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    min-width: 240px;
+    text-align: right;
+}
+
+.rfm-table-wrap {
+    background: #fff;
+    max-height: calc(100vh - 230px);
+    overflow: auto;
+}
+
+.rfm-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #eef2f7;
+}
+
+.rfm-row {
+    cursor: pointer;
+}
+
+.rfm-row.selected {
+    background: #dbe9ff !important;
+}
+
+.rfm-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rfm-icon {
+    font-size: 1.15rem;
+}
+
+.rfm-context {
+    position: fixed;
+    z-index: 2147483647;
+    min-width: 220px;
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #cfd6de;
+    border-radius: 8px;
+    box-shadow: 0 14px 40px rgba(8, 16, 30, 0.25);
+    padding: 0.35rem;
+}
+
+.rfm-context-item {
+    border: 0;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 6px;
+    color: #1f2937;
+}
+
+.rfm-context-item:hover {
+    background: #edf3ff;
+}
+
+.rfm-context-sep {
+    height: 1px;
+    background: #e5eaf0;
+    margin: 0.3rem 0;
+}
+
+.rfm-editor-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    background: rgba(6, 12, 23, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.rfm-editor-window {
+    width: min(1400px, 96vw);
+    height: min(92vh, 980px);
+    background: #ffffff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+}
+
+.rfm-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid #dce3eb;
+    background: #f8fafc;
+}
+
+.rfm-editor-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rfm-editor-actions {
+    display: flex;
+    gap: 0.45rem;
+}
+
+.rfm-editor-toolbar {
+    padding: 0.45rem 0.9rem;
+    border-bottom: 1px solid #dce3eb;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: #ffffff;
+}
+
+.rfm-editor-status {
+    margin-left: auto;
+    font-size: 0.9rem;
+    color: #5d6b7c;
+}
+
+.rfm-editor-surface {
+    flex: 1;
+    min-height: 420px;
+}
+
+.rfm-editor-surface .ace_editor {
+    width: 100% !important;
+    height: 100% !important;
+    font-size: 14px;
+}
+
+button.context-menu-item {
+    border: 0;
+    background: transparent;
+    width: 100%;
+}
+
+.rfm-editor-window.theme-dark {
+    background: #1f2937;
+}
+
+.rfm-editor-window.theme-dark .rfm-editor-header,
+.rfm-editor-window.theme-dark .rfm-editor-toolbar {
+    background: #111827;
+    border-color: #374151;
+    color: #e5e7eb;
+}
+
+.rfm-file-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.rfm-file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rfm-icon-chip {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.6rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    background: linear-gradient(145deg, #eff4ff, #e3ebff);
+    color: #315efb;
+    border: 1px solid #d7e2ff;
+    flex: 0 0 2rem;
+}
+
+.rfm-icon-chip.folder {
+    background: linear-gradient(145deg, #fff7da, #ffeeb2);
+    color: #b58105;
+    border-color: #f6dd92;
+}
+
+.rfm-file-visual {
+    position: relative;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rfm-thumb {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.55rem;
+    object-fit: cover;
+    border: 1px solid #d7e2f0;
+    background: #ffffff;
+}
+
+.rfm-row.selected {
+    background: #dcecff !important;
+}
+
+.rfm-row.drag-source {
+    opacity: 0.75;
+}
+
+.rfm-row.drop-target,
+.fm-tree-item.drop-target,
+.fm-content-area.drop-target {
+    outline: 2px dashed #2f6fed;
+    outline-offset: -2px;
+    background: rgba(47, 111, 237, 0.08) !important;
+}
+
+.fm-tree-item.drag-target {
+    background: rgba(47, 111, 237, 0.1);
+}
+
+.fm-tree-item.child {
+    padding-left: 1.4rem;
+}
+
+.rfm-drag-ghost {
+    position: fixed;
+    top: -9999px;
+    left: -9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.7rem;
+    border-radius: 0.6rem;
+    background: #1f2937;
+    color: #f9fafb;
+    border: 1px solid #111827;
+    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.35);
+    font-size: 0.85rem;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.rfm-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.75rem;
+    padding: 0.75rem;
+    overflow: auto;
+    max-height: calc(100vh - 260px);
+}
+
+.rfm-tiles.small {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+.rfm-tiles.large {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
+.rfm-tile {
+    border: 1px solid #dbe3ef;
+    border-radius: 10px;
+    padding: 0.65rem;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    cursor: pointer;
+    min-height: 88px;
+}
+
+.rfm-tile:hover {
+    border-color: #b8c9ea;
+    background: #f8fbff;
+}
+
+.rfm-tile.selected {
+    border-color: #6fa0ff;
+    background: #eaf3ff;
+}
+
+.rfm-tile-icon {
+    display: flex;
+    justify-content: center;
+}
+
+.rfm-tiles.small .rfm-thumb,
+.rfm-tiles.small .rfm-icon-chip,
+.rfm-tiles.small .rfm-file-visual {
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-basis: 1.75rem;
+}
+
+.rfm-tiles.large .rfm-thumb,
+.rfm-tiles.large .rfm-icon-chip,
+.rfm-tiles.large .rfm-file-visual {
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-basis: 2.5rem;
+    font-size: 1.35rem;
+}
+
+.rfm-tile-name {
+    font-size: 0.9rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    min-height: 2.2em;
+}
+
+.rfm-tile-meta {
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+/* Compact top row (view switch and actions) */
+.windows-file-manager .fm-ribbon-content {
+    padding: 0.35rem 0.5rem;
+    min-height: 2rem;
+    gap: 0.5rem;
+}
+
+.windows-file-manager .fm-ribbon-group {
+    padding-right: 0.6rem;
+    margin-right: 0.6rem;
+    gap: 0.35rem;
+}
+
+.windows-file-manager .fm-ribbon-button {
+    min-width: 48px;
+    padding: 0.25rem 0.35rem;
+    gap: 0.12rem;
+}
+
+.windows-file-manager .fm-ribbon-button i {
+    font-size: 1rem;
+}
+
+.windows-file-manager .fm-ribbon-button span {
+    font-size: 0.68rem;
+    line-height: 1;
+}
+
+.windows-file-manager .fm-view-btn {
+    padding: 0.3rem 0.45rem;
+}

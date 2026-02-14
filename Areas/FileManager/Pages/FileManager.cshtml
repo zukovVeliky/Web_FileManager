@@ -1,0 +1,238 @@
+﻿@page "/FileManager"
+@model RazorFileManagerApp.Areas.FileManager.Pages.FileManagerModel
+@{
+    ViewData["Title"] = "FileManager";
+}
+
+<div class="windows-file-manager">
+    <div class="fm-ribbon">
+        <div class="fm-ribbon-content">
+            <div class="fm-ribbon-group">
+                <button id="rfm-new-folder" class="fm-ribbon-button" type="button">
+                    <i class="bi bi-folder-plus"></i>
+                    <span>Nová složka</span>
+                </button>
+                <button id="rfm-upload" class="fm-ribbon-button" type="button">
+                    <i class="bi bi-upload"></i>
+                    <span>Nahrát</span>
+                </button>
+                <input id="rfm-file-input" type="file" multiple hidden />
+            </div>
+            <div class="fm-ribbon-group ms-auto">
+                <div class="fm-view-buttons me-2">
+                    <button id="rfm-view-details" class="fm-view-btn active" type="button" title="Detaily">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                    <button id="rfm-view-tiles-sm" class="fm-view-btn" type="button" title="Malé dlaždice">
+                        <i class="bi bi-grid-3x3-gap"></i>
+                    </button>
+                    <button id="rfm-view-tiles-lg" class="fm-view-btn" type="button" title="Velké dlaždice">
+                        <i class="bi bi-grid-3x3"></i>
+                    </button>
+                </div>
+                <button id="rfm-refresh" class="fm-ribbon-button" type="button">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span>Obnovit</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fm-address-bar">
+        <div class="fm-address-nav">
+            <button id="rfm-up" class="fm-nav-btn" type="button" title="O úroveň výš">
+                <i class="bi bi-arrow-up"></i>
+            </button>
+        </div>
+        <div id="rfm-breadcrumb" class="fm-breadcrumb"></div>
+    </div>
+
+    <div class="fm-main-container">
+        <div class="fm-sidebar">
+            <div id="rfm-tree" class="fm-tree"></div>
+        </div>
+
+        <div class="fm-content-area" id="rfm-surface">
+            <div class="fm-details-view">
+                <table class="fm-details-table" id="rfm-table">
+                    <thead>
+                        <tr>
+                            <th class="fm-col-name">Název</th>
+                            <th class="fm-col-size">Velikost</th>
+                            <th class="fm-col-date">Datum změny</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rfm-body"></tbody>
+                </table>
+                <div id="rfm-tiles" class="rfm-tiles" hidden></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="rfm-context" class="context-menu" hidden></div>
+
+<div id="rfm-editor-modal" class="code-editor-modal-overlay" hidden>
+    <div class="code-editor-modal-container" role="dialog" aria-modal="true">
+        <div class="code-editor-modal-header">
+            <div id="rfm-editor-title" class="code-editor-modal-title"></div>
+            <div class="d-flex align-items-center gap-2">
+                <button id="rfm-editor-save" class="btn btn-sm btn-primary" type="button">
+                    <i class="bi bi-save"></i> Uložit
+                </button>
+                <button id="rfm-editor-theme" class="btn btn-sm btn-outline-secondary" type="button" title="Přepnout téma">
+                    <i class="bi bi-moon"></i>
+                </button>
+                <button id="rfm-editor-close" class="btn btn-sm btn-secondary" type="button">
+                    <i class="bi bi-x-lg"></i> Zavřít
+                </button>
+            </div>
+        </div>
+
+        <div class="code-editor-container theme-light" style="height: calc(100% - 3rem); max-height: 100%;">
+            <div class="code-editor-toolbar">
+                <label for="rfm-editor-language" class="me-2">Jazyk:</label>
+                <select id="rfm-editor-language" class="form-select form-select-sm" style="width: 180px;">
+                    <option value="auto">Automaticky</option>
+                    <option value="html">HTML</option>
+                    <option value="css">CSS</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="php">PHP</option>
+                    <option value="csharp">C#</option>
+                    <option value="cpp">C/C++</option>
+                    <option value="java">Java</option>
+                    <option value="python">Python</option>
+                    <option value="ruby">Ruby</option>
+                    <option value="go">Go</option>
+                    <option value="rust">Rust</option>
+                    <option value="sql">SQL</option>
+                    <option value="json">JSON</option>
+                    <option value="xml">XML</option>
+                    <option value="yaml">YAML</option>
+                    <option value="markdown">Markdown</option>
+                    <option value="txt">Plain Text</option>
+                </select>
+                <span id="rfm-editor-status" class="ms-auto"></span>
+            </div>
+            <div id="rfm-editor" class="rfm-editor-surface"></div>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/Lib/Filemanager/css/windows-filemanager.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Lib/Filemanager/css/filemanager.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Lib/Filemanager/css/code-editor.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Lib/Filemanager/file-icon-vectors/file-icon-vectors.min.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/Lib/Filemanager/ace/ace.js" asp-append-version="true"></script>
+    <script>
+        (function () {
+            const defaults = {
+                root: '@(Model.Settings.Root ?? string.Empty)',
+                onlyImages: '@(Model.Settings.OnlyImages.HasValue ? (Model.Settings.OnlyImages.Value ? "1" : "0") : string.Empty)',
+                allowExt: '@(Model.Settings.AllowExt ?? string.Empty)',
+                callback: '@(Model.Settings.Callback ?? string.Empty)'
+            };
+
+            function toBase64UrlUtf8(value) {
+                const bytes = new TextEncoder().encode(String(value ?? ''));
+                let binary = '';
+                for (const b of bytes) binary += String.fromCharCode(b);
+                return 'b64:' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+            }
+
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+            let changed = false;
+
+            function setIfMissing(name, rawValue) {
+                if (!rawValue || params.has(name)) return;
+                params.set(name, toBase64UrlUtf8(rawValue));
+                changed = true;
+            }
+
+            setIfMissing('root', defaults.root);
+            setIfMissing('onlyImages', defaults.onlyImages);
+            setIfMissing('allowExt', defaults.allowExt);
+            setIfMissing('callback', defaults.callback);
+
+            if (changed) {
+                const next = url.pathname + '?' + params.toString() + url.hash;
+                window.history.replaceState({}, '', next);
+            }
+        })();
+    </script>
+    <script>
+        (function () {
+            const NativeWebSocket = window.WebSocket;
+            if (!NativeWebSocket) return;
+
+            const appPort = window.location.port;
+            const appHost = window.location.hostname;
+
+            function shouldBlock(url) {
+                try {
+                    const target = new URL(url, window.location.href);
+                    const isOtherLocalPort =
+                        (target.hostname === "localhost" || target.hostname === "127.0.0.1" || target.hostname === appHost) &&
+                        target.port &&
+                        target.port !== appPort;
+
+                    const path = (target.pathname || "").toLowerCase();
+                    const isDevRefreshPath =
+                        path.includes("browserlinksignalr") ||
+                        path.includes("browserlink") ||
+                        path.includes("/RazorFileManagerApp/");
+
+                    return isOtherLocalPort || isDevRefreshPath;
+                } catch {
+                    return false;
+                }
+            }
+
+            function createClosedSocket() {
+                return {
+                    readyState: 3,
+                    bufferedAmount: 0,
+                    extensions: "",
+                    protocol: "",
+                    url: "",
+                    close: function () { },
+                    send: function () { },
+                    addEventListener: function () { },
+                    removeEventListener: function () { },
+                    dispatchEvent: function () { return false; }
+                };
+            }
+
+            function WrappedWebSocket(url, protocols) {
+                if (shouldBlock(url)) {
+                    return createClosedSocket();
+                }
+
+                if (protocols !== undefined) {
+                    return new NativeWebSocket(url, protocols);
+                }
+
+                return new NativeWebSocket(url);
+            }
+
+            WrappedWebSocket.prototype = NativeWebSocket.prototype;
+            WrappedWebSocket.CONNECTING = NativeWebSocket.CONNECTING;
+            WrappedWebSocket.OPEN = NativeWebSocket.OPEN;
+            WrappedWebSocket.CLOSING = NativeWebSocket.CLOSING;
+            WrappedWebSocket.CLOSED = NativeWebSocket.CLOSED;
+
+            window.WebSocket = WrappedWebSocket;
+        })();
+    </script>
+    <script src="~/Lib/Filemanager/js/filemanager.js" asp-append-version="true"></script>
+}
+
+
+
+

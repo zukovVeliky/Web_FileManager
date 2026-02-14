@@ -1,0 +1,21 @@
+# Build outputs
+bin/
+obj/
+
+# User/IDE files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# Publish
+publish/
+
+# OS
+Thumbs.db
+Desktop.ini
+
