@@ -80,10 +80,19 @@ public class FileManagerApiController : ControllerBase
         var decodedFileName = DecodeUrlParam(fileName) ?? fileName;
         var decodedRoot = DecodeUrlParam(root);
 
-        var thumbnail = await _fileService.GetImageThumbnailAsync(
-            decodedPath,
-            decodedFileName,
-            root: decodedRoot);
+        byte[]? thumbnail = null;
+        try
+        {
+            thumbnail = await _fileService.GetImageThumbnailAsync(
+                decodedPath,
+                decodedFileName,
+                root: decodedRoot);
+        }
+        catch
+        {
+            // Thumbnail generation can fail on some hosting environments.
+            // Continue with fallback to the original file instead of returning 500.
+        }
 
         if (thumbnail != null)
         {
