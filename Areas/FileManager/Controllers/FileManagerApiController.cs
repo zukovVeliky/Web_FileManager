@@ -76,16 +76,27 @@ public class FileManagerApiController : ControllerBase
     [HttpGet("thumbnail")]
     public async Task<IActionResult> GetThumbnail([FromQuery] string? path, [FromQuery] string fileName, [FromQuery] string? root)
     {
+        var decodedPath = DecodeUrlParam(path);
+        var decodedFileName = DecodeUrlParam(fileName) ?? fileName;
+        var decodedRoot = DecodeUrlParam(root);
+
         var thumbnail = await _fileService.GetImageThumbnailAsync(
-            DecodeUrlParam(path),
-            DecodeUrlParam(fileName) ?? fileName,
-            root: DecodeUrlParam(root));
-        if (thumbnail == null)
+            decodedPath,
+            decodedFileName,
+            root: decodedRoot);
+
+        if (thumbnail != null)
+        {
+            return File(thumbnail, "image/jpeg");
+        }
+
+        var originalAbsolutePath = _fileService.GetAbsolutePathForRead(decodedPath, decodedFileName, decodedRoot);
+        if (!System.IO.File.Exists(originalAbsolutePath))
         {
             return NotFound();
         }
 
-        return File(thumbnail, "image/jpeg");
+        return PhysicalFile(originalAbsolutePath, GetImageContentType(decodedFileName));
     }
 
     [HttpPost("upload")]
@@ -230,6 +241,24 @@ public class FileManagerApiController : ControllerBase
         }
 
         return true;
+    }
+
+    private static string GetImageContentType(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLowerInvariant();
+        return extension switch
+        {
+            ".jpg" => "image/jpeg",
+            ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            ".tif" => "image/tiff",
+            ".tiff" => "image/tiff",
+            _ => "application/octet-stream"
+        };
     }
 }
 
