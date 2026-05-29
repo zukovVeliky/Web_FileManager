@@ -44,6 +44,10 @@
             callback: 'ZachyceniURLCKeditor',
             setPath: ''
         },
+        uploads: {
+            nextId: 1,
+            items: new Map()
+        },
         root: ''
     };
 
@@ -72,6 +76,7 @@
         el.viewDetails = q('rfm-view-details');
         el.viewTilesSm = q('rfm-view-tiles-sm');
         el.viewTilesLg = q('rfm-view-tiles-lg');
+        el.uploadProgressStack = q('rfm-upload-progress-stack');
 
         el.editorModal = q('rfm-editor-modal');
         el.editorWindow = el.editorModal.querySelector('.code-editor-container');
@@ -113,9 +118,12 @@
             });
         }
 
-        el.fileInput.addEventListener('change', async () => {
-            await uploadFiles(el.fileInput.files);
+        el.fileInput.addEventListener('change', () => {
+            const files = Array.from(el.fileInput.files || []);
             el.fileInput.value = '';
+            if (files.length > 0) {
+                uploadFiles(files);
+            }
         });
 
         el.body.addEventListener('click', onBodyClick);
@@ -969,6 +977,9 @@
             }
             if (!hasMultiSelection) {
                 items.push({ id: 'download', label: 'Stáhnout', icon: 'bi-download' });
+                if (isPdfFile(target.name)) {
+                    items.push({ id: 'export-pdf-jpg', label: 'Exportovat do JPG', icon: 'bi-file-earmark-image' });
+                }
                 if (isZipFile(target.name)) {
                     items.push({ id: 'unzip', label: 'Rozbalit', icon: 'bi-box-arrow-in-down' });
                 }
@@ -1038,6 +1049,14 @@
                     const [single] = resolveActionEntries(target);
                     if (single) {
                         downloadEntry(single);
+                    }
+                }
+                break;
+            case 'export-pdf-jpg':
+                {
+                    const [single] = resolveActionEntries(target);
+                    if (single && isPdfFile(single.name)) {
+                        await exportPdfToJpg(single);
                     }
                 }
                 break;
@@ -1211,18 +1230,273 @@
             return;
         }
 
-        const formData = new FormData();
-        for (const file of files) {
-            formData.append('files', file);
-        }
+        const fileList = Array.from(files);
 
-        const encodedPath = encodeURIComponent(encodeUrlParam(state.currentPath));
-        await api(`/api/filemanager/upload?path=${encodedPath}${buildRootQuerySuffix()}`, {
-            method: 'POST',
-            body: formData
+        const normalizedPath = normalizeRelative(state.currentPath || '');
+        state.currentPath = normalizedPath;
+
+        const uploadQuery = normalizedPath
+            ? `path=${encodeURIComponent(encodeUrlParam(normalizedPath))}${buildRootQuerySuffix()}`
+            : buildRootQuerySuffix().replace(/^&/, '');
+
+        const uploadUrl = uploadQuery
+            ? `/api/filemanager/upload?${uploadQuery}`
+            : '/api/filemanager/upload';
+
+        const failed = [];
+        const maxParallel = 1;
+        const maxRetries = 2;
+
+        await runWithConcurrency(fileList, maxParallel, async (file) => {
+            const progressId = createUploadProgressItem(`Nahravam ${file.name}`);
+            try {
+                let uploaded = false;
+                let lastMessage = 'Nahravani selhalo.';
+
+                for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                    const formData = new FormData();
+                    formData.append('files', file);
+                    const attemptLabel = attempt === 0
+                        ? `Nahravam ${file.name}`
+                        : `Opakuji ${file.name} (${attempt}/${maxRetries})`;
+                    updateUploadProgressLabel(progressId, attemptLabel);
+
+                    try {
+                        await uploadWithProgress(uploadUrl, formData, (event) => {
+                            if (event.lengthComputable && event.total > 0) {
+                                const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+                                setUploadProgress(progressId, percent, event.loaded, event.total);
+                                return;
+                            }
+
+                            setUploadProgress(progressId, null);
+                        });
+
+                        uploaded = true;
+                        break;
+                    } catch (error) {
+                        lastMessage = error instanceof Error ? error.message : 'Nahravani selhalo.';
+                        if (attempt < maxRetries) {
+                            setUploadProgress(progressId, 0, 0, file.size || null);
+                            await delay(1000 * (attempt + 1));
+                        }
+                    }
+                }
+
+                if (!uploaded) {
+                    throw new Error(lastMessage);
+                }
+
+                setUploadProgress(progressId, 100);
+                completeUploadProgressItem(progressId, 'Dokonceno', false);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Nahravani selhalo.';
+                failed.push({ name: file.name, message });
+                completeUploadProgressItem(progressId, message, true);
+            } finally {
+                const row = progressId ? state.uploads.items.get(progressId) : null;
+                const hasError = row?.bar?.classList?.contains('error') === true;
+                scheduleUploadProgressItemRemoval(progressId, hasError ? 12000 : 2200);
+            }
         });
 
         await loadEntries(state.currentPath);
+
+        if (failed.length > 0) {
+            const lines = failed.slice(0, 6).map((x) => `- ${x.name}: ${x.message}`);
+            const rest = failed.length > 6 ? `\n...a dalsich ${failed.length - 6} souboru.` : '';
+            alert(`Selhalo ${failed.length} souboru:\n${lines.join('\n')}${rest}`);
+        }
+    }
+
+    function updateUploadProgressLabel(id, labelText) {
+        const item = id ? state.uploads.items.get(id) : null;
+        if (!item || !item.label) {
+            return;
+        }
+
+        item.label.textContent = labelText || item.label.textContent;
+    }
+
+    function delay(ms) {
+        return new Promise((resolve) => {
+            window.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+        });
+    }
+
+    async function runWithConcurrency(items, limit, worker) {
+        const queue = Array.isArray(items) ? items.slice() : [];
+        const maxWorkers = Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 1);
+
+        async function next() {
+            while (queue.length > 0) {
+                const item = queue.shift();
+                await worker(item);
+            }
+        }
+
+        const workers = [];
+        for (let i = 0; i < maxWorkers; i++) {
+            workers.push(next());
+        }
+
+        await Promise.all(workers);
+    }
+
+    function uploadWithProgress(url, formData, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            xhr.responseType = 'json';
+
+            xhr.upload.addEventListener('progress', (event) => {
+                if (typeof onProgress === 'function') {
+                    onProgress(event);
+                }
+            });
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(xhr.response ?? null);
+                    return;
+                }
+
+                reject(new Error(extractXhrError(xhr)));
+            };
+
+            xhr.onerror = () => reject(new Error('Nahravani selhalo.'));
+            xhr.onabort = () => reject(new Error('Nahravani bylo zruseno.'));
+            xhr.send(formData);
+        });
+    }
+
+    function extractXhrError(xhr) {
+        let message = `HTTP ${xhr?.status ?? 0}`;
+
+        const jsonResponse = xhr?.response;
+        if (jsonResponse && typeof jsonResponse === 'object' && typeof jsonResponse.message === 'string') {
+            return jsonResponse.message;
+        }
+
+        const textResponse = xhr?.responseText;
+        if (typeof textResponse === 'string' && textResponse.length > 0) {
+            try {
+                const parsed = JSON.parse(textResponse);
+                if (parsed && typeof parsed.message === 'string') {
+                    return parsed.message;
+                }
+            } catch {
+            }
+        }
+
+        return message;
+    }
+
+    function createUploadProgressItem(label) {
+        if (!el.uploadProgressStack) {
+            return null;
+        }
+
+        const id = `upload-${Date.now()}-${state.uploads.nextId++}`;
+        const item = document.createElement('div');
+        item.className = 'fm-upload-progress-item';
+        item.innerHTML = `
+            <div class="fm-upload-progress-top">
+                <span class="fm-upload-progress-label"></span>
+                <span class="fm-upload-progress-value">0 %</span>
+            </div>
+            <div class="fm-upload-progress-track">
+                <div class="fm-upload-progress-bar"></div>
+            </div>
+        `;
+
+        const labelElement = item.querySelector('.fm-upload-progress-label');
+        const valueElement = item.querySelector('.fm-upload-progress-value');
+        const barElement = item.querySelector('.fm-upload-progress-bar');
+        if (!labelElement || !valueElement || !barElement) {
+            return null;
+        }
+
+        labelElement.textContent = label || 'Nahravam soubory...';
+        el.uploadProgressStack.prepend(item);
+        state.uploads.items.set(id, {
+            root: item,
+            label: labelElement,
+            value: valueElement,
+            bar: barElement
+        });
+        refreshUploadProgressStackVisibility();
+        return id;
+    }
+
+    function setUploadProgress(id, percent, loadedBytes = null, totalBytes = null) {
+        const item = id ? state.uploads.items.get(id) : null;
+        if (!item) {
+            return;
+        }
+
+        item.bar.classList.remove('error');
+        if (typeof percent !== 'number' || Number.isNaN(percent)) {
+            item.bar.classList.add('indeterminate');
+            item.value.textContent = 'Prenasim...';
+            return;
+        }
+
+        const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+        item.bar.classList.remove('indeterminate');
+        item.bar.style.width = `${safePercent}%`;
+
+        if (typeof loadedBytes === 'number' && typeof totalBytes === 'number' && totalBytes > 0) {
+            item.value.textContent = `${safePercent} % (${formatSize(loadedBytes)} / ${formatSize(totalBytes)})`;
+            return;
+        }
+
+        item.value.textContent = `${safePercent} %`;
+    }
+
+    function completeUploadProgressItem(id, statusText, isError) {
+        const item = id ? state.uploads.items.get(id) : null;
+        if (!item) {
+            return;
+        }
+
+        item.bar.classList.remove('indeterminate');
+        if (isError) {
+            item.bar.classList.add('error');
+            item.value.textContent = statusText || 'Nahravani selhalo';
+            return;
+        }
+
+        item.bar.style.width = '100%';
+        item.value.textContent = statusText || 'Dokonceno';
+    }
+
+    function scheduleUploadProgressItemRemoval(id, delayMs = 2200) {
+        if (!id) {
+            return;
+        }
+
+        const safeDelay = typeof delayMs === 'number' && delayMs >= 0 ? delayMs : 2200;
+        window.setTimeout(() => removeUploadProgressItem(id), safeDelay);
+    }
+
+    function removeUploadProgressItem(id) {
+        const item = state.uploads.items.get(id);
+        if (!item) {
+            return;
+        }
+
+        state.uploads.items.delete(id);
+        item.root.remove();
+        refreshUploadProgressStackVisibility();
+    }
+
+    function refreshUploadProgressStackVisibility() {
+        if (!el.uploadProgressStack) {
+            return;
+        }
+
+        el.uploadProgressStack.hidden = state.uploads.items.size === 0;
     }
 
     function downloadEntry(entry) {
@@ -1231,6 +1505,31 @@
         }
 
         window.open(entry.url, '_blank', 'noopener');
+    }
+
+    async function exportPdfToJpg(entry) {
+        const result = await api('/api/filemanager/export-pdf-jpg', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: getParentPath(entry.relativePath),
+                fileName: entry.name,
+                root: state.root || null
+            })
+        });
+
+        await loadEntries(state.currentPath);
+
+        if (result && result.relativePath) {
+            const createdPath = normalizeRelative(result.relativePath);
+            const createdEntry = state.entries.find((x) => x.relativePath === createdPath);
+            const index = state.visibleEntries.findIndex((x) => x.relativePath === createdPath);
+            if (createdEntry) {
+                selectSingle(createdPath, index);
+            }
+
+            alert(`JPG bylo vytvořeno jako ${result.fileName}.`);
+        }
     }
 
     function openImagePreview(entry) {
@@ -2079,6 +2378,10 @@
 
     function isZipFile(name) {
         return getExtension(name) === 'zip';
+    }
+
+    function isPdfFile(name) {
+        return getExtension(name) === 'pdf';
     }
 
     function formatSize(bytes) {

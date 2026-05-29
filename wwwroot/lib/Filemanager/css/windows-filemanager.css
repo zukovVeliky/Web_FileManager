@@ -7,6 +7,71 @@
     position: relative;
 }
 
+.fm-upload-progress-stack {
+    background: #ffffff;
+    border-top: 1px solid #dee2e6;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: 30vh;
+    overflow-y: auto;
+}
+
+.fm-upload-progress-item {
+    border: 1px solid #dee2e6;
+    border-radius: 0.4rem;
+    padding: 0.45rem 0.55rem;
+    background: #fcfcfd;
+}
+
+.fm-upload-progress-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.fm-upload-progress-label {
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fm-upload-progress-track {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.fm-upload-progress-bar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #198754 0%, #20c997 100%);
+    transition: width 0.12s linear;
+}
+
+.fm-upload-progress-bar.error {
+    background: linear-gradient(90deg, #dc3545 0%, #f06595 100%);
+}
+
+.fm-upload-progress-bar.indeterminate {
+    width: 35%;
+    animation: fm-upload-indeterminate 1s ease-in-out infinite;
+}
+
+@keyframes fm-upload-indeterminate {
+    0% {
+        transform: translateX(-120%);
+    }
+    100% {
+        transform: translateX(310%);
+    }
+}
+
 .code-editor-modal-overlay {
     position: fixed !important;
     top: 0 !important;

@@ -1,7 +1,10 @@
-﻿using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Diagnostics;
+using PDFtoImage;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Processing;
 
 namespace WebFileManager.Services;
 
@@ -9,6 +12,8 @@ public class CustomFileManagerService
 {
     private readonly IWebHostEnvironment _env;
     private const string DefaultRootFolder = "UzivatelskeSoubory";
+    private static readonly string[] ReadWriteRootPrefixes = [DefaultRootFolder, "Event"];
+    private static readonly string[] ReadOnlyRootPrefixes = ["lib"];
 
     public CustomFileManagerService(IWebHostEnvironment env)
     {
@@ -64,7 +69,7 @@ public class CustomFileManagerService
             return Task.CompletedTask;
         }
 
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var absolute = GetAbsolutePath(CombineRelative(safePath, safeName), rootContext);
         Directory.CreateDirectory(absolute);
@@ -73,7 +78,7 @@ public class CustomFileManagerService
 
     public Task<bool> DeleteAsync(string relativePath, bool isDirectory, string? root = null)
     {
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var absolute = GetAbsolutePath(NormalizeRelative(relativePath), rootContext);
         if (isDirectory)
         {
@@ -102,7 +107,7 @@ public class CustomFileManagerService
             return Task.FromResult(false);
         }
 
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var absolute = GetAbsolutePath(safePath, rootContext);
         var parent = Path.GetDirectoryName(absolute) ?? rootContext.AbsolutePath;
@@ -129,13 +134,19 @@ public class CustomFileManagerService
 
     public async Task<bool> UploadAsync(string? relativePath, Stream content, string fileName, string? root = null)
     {
+        var stored = await UploadWithResultAsync(relativePath, content, fileName, root);
+        return stored is not null;
+    }
+
+    public async Task<UploadStoredFileInfo?> UploadWithResultAsync(string? relativePath, Stream content, string fileName, string? root = null)
+    {
         var safeName = Path.GetFileName(fileName);
         if (string.IsNullOrWhiteSpace(safeName))
         {
-            return false;
+            return null;
         }
 
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var folder = GetAbsolutePath(safePath, rootContext);
         Directory.CreateDirectory(folder);
@@ -143,7 +154,13 @@ public class CustomFileManagerService
 
         await using var targetStream = File.Create(target);
         await content.CopyToAsync(targetStream);
-        return true;
+        TryOptimizeUploadedImage(target, rootContext.UrlPath, safePath);
+
+        var finalName = Path.GetFileName(target);
+        return new UploadStoredFileInfo(
+            finalName,
+            BuildFileUrl(safePath, finalName, root),
+            CombineRelative(safePath, finalName));
     }
 
     public string GetParent(string? relativePath)
@@ -173,7 +190,7 @@ public class CustomFileManagerService
         return string.IsNullOrWhiteSpace(rel) ? $"/{rootUrl}" : $"/{rootUrl}/{rel}";
     }
 
-    private RootContext ResolveRootContext(string? root)
+    private RootContext ResolveRootContext(string? root, bool requireWrite = false)
     {
         var defaultAbsolute = Path.Combine(_env.WebRootPath, DefaultRootFolder);
         var defaultContext = new RootContext(defaultAbsolute, DefaultRootFolder);
@@ -196,6 +213,17 @@ public class CustomFileManagerService
             relativeRoot = relativeRoot.Substring("wwwroot/".Length);
         }
 
+        if (!IsRootAllowed(relativeRoot, allowReadOnly: !requireWrite))
+        {
+            if (requireWrite)
+            {
+                throw new UnauthorizedAccessException("Zapis do zvoleneho root neni povolen.");
+            }
+
+            Directory.CreateDirectory(defaultContext.AbsolutePath);
+            return defaultContext;
+        }
+
         var absoluteCandidate = Path.GetFullPath(
             Path.Combine(_env.WebRootPath, relativeRoot.Replace("/", Path.DirectorySeparatorChar.ToString())));
         if (!absoluteCandidate.StartsWith(webRootAbsolute, StringComparison.OrdinalIgnoreCase))
@@ -207,6 +235,12 @@ public class CustomFileManagerService
         // If requested root does not exist (or is not a directory), fallback to default root.
         if (!Directory.Exists(absoluteCandidate))
         {
+            if (requireWrite)
+            {
+                Directory.CreateDirectory(absoluteCandidate);
+                return new RootContext(absoluteCandidate, relativeRoot.Replace("\\", "/").Trim('/'));
+            }
+
             Directory.CreateDirectory(defaultContext.AbsolutePath);
             return defaultContext;
         }
@@ -304,9 +338,119 @@ public class CustomFileManagerService
         }
     }
 
+    private static void TryOptimizeUploadedImage(string absolutePath, string rootPath, string relativePath)
+    {
+        if (!IsEventGalleryPath(rootPath, relativePath))
+        {
+            return;
+        }
+
+        var extension = Path.GetExtension(absolutePath).ToLowerInvariant();
+        if (extension is not (".jpg" or ".jpeg" or ".png"))
+        {
+            return;
+        }
+
+        try
+        {
+            using var source = Image.Load(absolutePath);
+            source.Mutate(ctx => ctx.AutoOrient());
+
+            const int maxDimension = 1920;
+            var resizeRatio = Math.Min(1d, maxDimension / (double)Math.Max(source.Width, source.Height));
+            var targetWidth = Math.Max(1, (int)Math.Round(source.Width * resizeRatio));
+            var targetHeight = Math.Max(1, (int)Math.Round(source.Height * resizeRatio));
+            var requiresResize = targetWidth != source.Width || targetHeight != source.Height;
+
+            if (requiresResize)
+            {
+                source.Mutate(ctx => ctx.Resize(new ResizeOptions
+                {
+                    Size = new Size(targetWidth, targetHeight),
+                    Mode = ResizeMode.Stretch,
+                    Sampler = KnownResamplers.Bicubic
+                }));
+            }
+
+            var tempPath = absolutePath + ".optimized";
+            SaveOptimized(source, tempPath, extension);
+
+            var originalSize = new FileInfo(absolutePath).Length;
+            var optimizedSize = new FileInfo(tempPath).Length;
+            if (requiresResize || optimizedSize < originalSize)
+            {
+                File.Copy(tempPath, absolutePath, true);
+            }
+
+            File.Delete(tempPath);
+        }
+        catch
+        {
+            // Optimization is best-effort, upload should not fail when image processing fails.
+        }
+    }
+
+    private static bool IsEventGalleryPath(string rootPath, string relativePath)
+    {
+        var combined = (rootPath + "/" + relativePath).Replace("\\", "/").ToLowerInvariant();
+        return combined.Contains("/event/") && combined.Contains("/galerie");
+    }
+
+    private static void SaveOptimized(Image image, string targetPath, string extension)
+    {
+        if (extension is ".jpg" or ".jpeg")
+        {
+            image.Save(targetPath, new JpegEncoder
+            {
+                Quality = 82
+            });
+            return;
+        }
+
+        image.Save(targetPath, new PngEncoder());
+    }
+
+    private static string SlugifyFileName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(normalized.Length);
+        var previousDash = false;
+
+        foreach (var ch in normalized)
+        {
+            var category = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (category == System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+                previousDash = false;
+                continue;
+            }
+
+            if (previousDash)
+            {
+                continue;
+            }
+
+            sb.Append('-');
+            previousDash = true;
+        }
+
+        return sb.ToString().Trim('-');
+    }
+
     public Task<bool> DeleteMultipleAsync(string? relativePath, List<string> fileNames, List<string> directoryNames, string? root = null)
     {
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var basePath = GetAbsolutePath(safePath, rootContext);
 
@@ -335,7 +479,7 @@ public class CustomFileManagerService
 
     public Task<bool> CopyAsync(string? relativePath, string? targetPath, List<string> fileNames, List<string> directoryNames, bool move = false, string? root = null)
     {
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var sourceBase = GetAbsolutePath(safePath, rootContext);
         
@@ -391,7 +535,7 @@ public class CustomFileManagerService
 
     public Task<string> CreateZipAsync(string? relativePath, List<string> fileNames, List<string> directoryNames, string? root = null)
     {
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var basePath = GetAbsolutePath(safePath, rootContext);
         var zipName = $"Zip_{DateTime.Now:yyyy_MM_dd_HHmmss}.zip";
@@ -426,7 +570,7 @@ public class CustomFileManagerService
 
     public Task<bool> ExtractZipAsync(string? relativePath, string zipFileName, string? root = null)
     {
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var basePath = GetAbsolutePath(safePath, rootContext);
         var zipPath = Path.Combine(basePath, Path.GetFileName(zipFileName));
@@ -458,17 +602,66 @@ public class CustomFileManagerService
 
         try
         {
-            using var originalImage = Image.FromFile(imagePath);
-            var thumbnail = ResizeImage(originalImage, new Size(maxWidth, maxHeight));
-            
+            var extension = Path.GetExtension(fileName);
+            if (string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult<byte[]?>(CreatePdfThumbnail(imagePath, maxWidth, maxHeight));
+            }
+
+            using var originalImage = Image.Load(imagePath);
+            originalImage.Mutate(ctx =>
+            {
+                ctx.AutoOrient();
+                ctx.Resize(new ResizeOptions
+                {
+                    Size = new Size(maxWidth, maxHeight),
+                    Mode = ResizeMode.Max,
+                    Sampler = KnownResamplers.Bicubic
+                });
+            });
+
             using var ms = new MemoryStream();
-            thumbnail.Save(ms, ImageFormat.Jpeg);
+            originalImage.Save(ms, new JpegEncoder { Quality = 80 });
             return Task.FromResult<byte[]?>(ms.ToArray());
         }
         catch
         {
             return Task.FromResult<byte[]?>(null);
         }
+    }
+
+    private static byte[]? CreatePdfThumbnail(string pdfPath, int maxWidth, int maxHeight)
+    {
+        var pdfBytes = File.ReadAllBytes(pdfPath);
+        using var jpgStream = new MemoryStream();
+
+        Conversion.SaveJpeg(
+            jpgStream,
+            pdfBytes,
+            page: 0,
+            password: null,
+            options: new RenderOptions
+            {
+                Width = maxWidth,
+                Height = null,
+                WithAspectRatio = true
+            });
+
+        jpgStream.Position = 0;
+        using var originalImage = Image.Load(jpgStream);
+        originalImage.Mutate(ctx =>
+        {
+            ctx.Resize(new ResizeOptions
+            {
+                Size = new Size(maxWidth, maxHeight),
+                Mode = ResizeMode.Max,
+                Sampler = KnownResamplers.Bicubic
+            });
+        });
+
+        using var ms = new MemoryStream();
+        originalImage.Save(ms, new JpegEncoder { Quality = 80 });
+        return ms.ToArray();
     }
 
     /// <summary>
@@ -542,6 +735,49 @@ public class CustomFileManagerService
         // VrĂˇtĂ­me relativnĂ­ cestu z UzivatelskeSoubory
         var rel = pdfFile.Substring(rootPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return rel.Replace("\\", "/");
+    }
+
+    public Task<UploadStoredFileInfo?> ExportPdfFirstPageToJpgAsync(string? relativePath, string fileName, string? root = null)
+    {
+        var rootContext = ResolveRootContext(root, requireWrite: true);
+        var safePath = NormalizeRelative(relativePath);
+        var basePath = GetAbsolutePath(safePath, rootContext);
+        var sourcePath = Path.Combine(basePath, Path.GetFileName(fileName));
+
+        if (!File.Exists(sourcePath) || !string.Equals(Path.GetExtension(fileName), ".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<UploadStoredFileInfo?>(null);
+        }
+
+        var safeBaseName = SlugifyFileName(Path.GetFileNameWithoutExtension(fileName));
+        if (string.IsNullOrWhiteSpace(safeBaseName))
+        {
+            safeBaseName = "pdf-export";
+        }
+
+        var targetPath = GetUniqueFilePath(basePath, safeBaseName + ".jpg");
+        var pdfBytes = File.ReadAllBytes(sourcePath);
+
+        using (var output = File.Create(targetPath))
+        {
+            Conversion.SaveJpeg(
+                output,
+                pdfBytes,
+                page: 0,
+                password: null,
+                options: new RenderOptions
+                {
+                    Width = 1600,
+                    Height = null,
+                    WithAspectRatio = true
+                });
+        }
+
+        var finalName = Path.GetFileName(targetPath);
+        return Task.FromResult<UploadStoredFileInfo?>(new UploadStoredFileInfo(
+            finalName,
+            BuildFileUrl(safePath, finalName, root),
+            CombineRelative(safePath, finalName)));
     }
 
     public Task<bool> DeleteTempRelativeFileAsync(string? relativePath, string? root = null)
@@ -654,26 +890,6 @@ public class CustomFileManagerService
         }
     }
 
-    private static Image ResizeImage(Image image, Size size)
-    {
-        var sourceWidth = image.Width;
-        var sourceHeight = image.Height;
-        
-        float nPercentW = (float)size.Width / sourceWidth;
-        float nPercentH = (float)size.Height / sourceHeight;
-        float nPercent = Math.Min(nPercentH, nPercentW);
-        
-        var destWidth = (int)(sourceWidth * nPercent);
-        var destHeight = (int)(sourceHeight * nPercent);
-        
-        var bitmap = new Bitmap(destWidth, destHeight);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-        graphics.DrawImage(image, 0, 0, destWidth, destHeight);
-        
-        return bitmap;
-    }
-
     public string GetAbsolutePathForRead(string? relativePath, string fileName, string? root = null)
     {
         var rootContext = ResolveRootContext(root);
@@ -684,11 +900,42 @@ public class CustomFileManagerService
 
     public string GetAbsolutePathForWrite(string? relativePath, string fileName, string? root = null)
     {
-        var rootContext = ResolveRootContext(root);
+        var rootContext = ResolveRootContext(root, requireWrite: true);
         var safePath = NormalizeRelative(relativePath);
         var basePath = GetAbsolutePath(safePath, rootContext);
         Directory.CreateDirectory(basePath);
         return Path.Combine(basePath, Path.GetFileName(fileName));
+    }
+
+    private static bool IsRootAllowed(string relativeRoot, bool allowReadOnly)
+    {
+        var normalized = relativeRoot.Replace("\\", "/").Trim('/');
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            normalized = DefaultRootFolder;
+        }
+
+        if (MatchesAnyPrefix(normalized, ReadWriteRootPrefixes))
+        {
+            return true;
+        }
+
+        return allowReadOnly && MatchesAnyPrefix(normalized, ReadOnlyRootPrefixes);
+    }
+
+    private static bool MatchesAnyPrefix(string value, IEnumerable<string> prefixes)
+    {
+        foreach (var prefix in prefixes)
+        {
+            var normalizedPrefix = prefix.Replace("\\", "/").Trim('/');
+            if (value.Equals(normalizedPrefix, StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith(normalizedPrefix + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private sealed record RootContext(string AbsolutePath, string UrlPath);
@@ -701,6 +948,13 @@ public record FileManagerEntry(
     long Size,
     DateTimeOffset Modified,
     string? Url);
+
+public record UploadStoredFileInfo(
+    string FileName,
+    string Url,
+    string RelativePath);
+
+
 
 
 

@@ -1,7 +1,18 @@
 ﻿@page "/FileManager"
 @model WebFileManager.Areas.FileManager.Pages.FileManagerModel
 @{
-    ViewData["Title"] = "FileManager";
+    ViewData["Title"] = Model.IsPickerMode ? "Vyber souboru" : "FileManager";
+    if (Model.IsPickerMode)
+    {
+        Layout = null;
+    }
+}
+
+@if (Model.IsPickerMode)
+{
+    <script>
+        document.title = 'Vyber souboru';
+    </script>
 }
 
 <div class="windows-file-manager">
@@ -68,6 +79,8 @@
             </div>
         </div>
     </div>
+
+    <div id="rfm-upload-progress-stack" class="fm-upload-progress-stack" hidden></div>
 </div>
 
 <div id="rfm-context" class="context-menu" hidden></div>
@@ -146,6 +159,123 @@
     </div>
 </div>
 
+@if (Model.IsPickerMode)
+{
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/Lib/Filemanager/css/windows-filemanager.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Lib/Filemanager/css/filemanager.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Lib/Filemanager/css/code-editor.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Lib/Filemanager/file-icon-vectors/file-icon-vectors.min.css" asp-append-version="true" />
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/Lib/Filemanager/ace/ace.js" asp-append-version="true"></script>
+    <script>
+        (function () {
+            const defaults = {
+                root: '@(Model.Settings.Root ?? string.Empty)',
+                onlyImages: '@(Model.Settings.OnlyImages.HasValue ? (Model.Settings.OnlyImages.Value ? "1" : "0") : string.Empty)',
+                allowExt: '@(Model.Settings.AllowExt ?? string.Empty)',
+                callback: '@(Model.Settings.Callback ?? string.Empty)'
+            };
+
+            function toBase64UrlUtf8(value) {
+                const bytes = new TextEncoder().encode(String(value ?? ''));
+                let binary = '';
+                for (const b of bytes) binary += String.fromCharCode(b);
+                return 'b64:' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+            }
+
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+            let changed = false;
+
+            function setIfMissing(name, rawValue) {
+                if (!rawValue || params.has(name)) return;
+                params.set(name, toBase64UrlUtf8(rawValue));
+                changed = true;
+            }
+
+            setIfMissing('root', defaults.root);
+            setIfMissing('onlyImages', defaults.onlyImages);
+            setIfMissing('allowExt', defaults.allowExt);
+            setIfMissing('callback', defaults.callback);
+
+            if (changed) {
+                const next = url.pathname + '?' + params.toString() + url.hash;
+                window.history.replaceState({}, '', next);
+            }
+        })();
+    </script>
+    <script>
+        (function () {
+            const NativeWebSocket = window.WebSocket;
+            if (!NativeWebSocket) return;
+
+            const appPort = window.location.port;
+            const appHost = window.location.hostname;
+
+            function shouldBlock(url) {
+                try {
+                    const target = new URL(url, window.location.href);
+                    const isOtherLocalPort =
+                        (target.hostname === "localhost" || target.hostname === "127.0.0.1" || target.hostname === appHost) &&
+                        target.port &&
+                        target.port !== appPort;
+
+                    const path = (target.pathname || "").toLowerCase();
+                    const isDevRefreshPath =
+                        path.includes("browserlinksignalr") ||
+                        path.includes("browserlink") ||
+                        path.includes("/WebFileManager/");
+
+                    return isOtherLocalPort || isDevRefreshPath;
+                } catch {
+                    return false;
+                }
+            }
+
+            function createClosedSocket() {
+                return {
+                    readyState: 3,
+                    bufferedAmount: 0,
+                    extensions: "",
+                    protocol: "",
+                    url: "",
+                    close: function () { },
+                    send: function () { },
+                    addEventListener: function () { },
+                    removeEventListener: function () { },
+                    dispatchEvent: function () { return false; }
+                };
+            }
+
+            function WrappedWebSocket(url, protocols) {
+                if (shouldBlock(url)) {
+                    return createClosedSocket();
+                }
+
+                if (protocols !== undefined) {
+                    return new NativeWebSocket(url, protocols);
+                }
+
+                return new NativeWebSocket(url);
+            }
+
+            WrappedWebSocket.prototype = NativeWebSocket.prototype;
+            WrappedWebSocket.CONNECTING = NativeWebSocket.CONNECTING;
+            WrappedWebSocket.OPEN = NativeWebSocket.OPEN;
+            WrappedWebSocket.CLOSING = NativeWebSocket.CLOSING;
+            WrappedWebSocket.CLOSED = NativeWebSocket.CLOSED;
+
+            window.WebSocket = WrappedWebSocket;
+        })();
+    </script>
+    <script src="~/Lib/Filemanager/js/filemanager.js" asp-append-version="true"></script>
+}
+else
+{
 @section Styles {
     <link rel="stylesheet" href="~/Lib/Filemanager/css/windows-filemanager.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Lib/Filemanager/css/filemanager.css" asp-append-version="true" />
@@ -257,6 +387,7 @@
         })();
     </script>
     <script src="~/Lib/Filemanager/js/filemanager.js" asp-append-version="true"></script>
+}
 }
 
 
